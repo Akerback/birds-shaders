@@ -229,7 +229,7 @@ namespace BirdsHDRNamespace {
             1f / 256f, 0f,
             1f / 64f, 0f,
             1f / 16f, 0f
-        );
+        ) / BUFFER_ASPECT_RATIO;
 
         //Horisontal blurs for 3 different buffers, shove 'em in a matrix
         float gVal = NormalDist(0f, sigma);
@@ -273,6 +273,7 @@ namespace BirdsHDRNamespace {
             float2(0f, 1f / 16f)
         );
 
+        //float4 bloomColor = pow(color, threshold);
         float4 bloomColor = tex2D(Bloom, uv);
                 
         //Finish up with vertical blurs for the extra bloom textures
@@ -298,7 +299,7 @@ namespace BirdsHDRNamespace {
         //Compensation for not sampling to infinity
         cmat = cmat / 0.95f;
         
-        bloomColor += cmat[0] * SpreadBias + cmat[1] * pow(SpreadBias, 2f) + cmat[2] * pow(SpreadBias, 3f);
+        bloomColor += cmat[0] + cmat[1] * SpreadBias + cmat[2] * pow(SpreadBias, 2f);
         bloomColor *= intensity / 4f;
 
         #if BIRDHDR_BLOOM_SHOW_TEX

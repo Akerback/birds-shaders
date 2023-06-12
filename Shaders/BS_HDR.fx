@@ -6,12 +6,12 @@ namespace BirdsHDRNamespace {
     #endif
 
 #if BIRDHDR_BLOOM_ENABLED
-    #ifndef BIRDHDR_BLOOM_SIZE
-        #define BIRDHDR_BLOOM_SIZE 3
+    #ifndef BIRDHDR_BLOOM_SAMPLES
+        #define BIRDHDR_BLOOM_SAMPLES 2
     #endif
 
     //Standard deviation used for gaussian blur distribution
-    static const float sigma = (float)BIRDHDR_BLOOM_SIZE / 2f;
+    static const float sigma = (float)BIRDHDR_BLOOM_SAMPLES / 2f;
 
     #ifndef BIRDHDR_BLOOM_SHOW_TEX
         #define BIRDHDR_BLOOM_SHOW_TEX 0
@@ -54,7 +54,7 @@ namespace BirdsHDRNamespace {
     uniform uint Mapping <
         ui_category = "Tonemapping";
         ui_type = "combo";
-        ui_items = "None\0Uncharted 2\0Reinhard\0ACES\0";
+        ui_items = "None\0Uncharted 2\0Reinhard\0Narkowicz ACES\0Hill ACES\0";
     > = 3;
 
     uniform float ExposureBias <
@@ -168,7 +168,30 @@ namespace BirdsHDRNamespace {
         return x / (x + 1f);
     }
 
-    float3 ACESTonemap(float3 x) 
+    float3 HillAces(float3 x) 
+    {
+        ///*
+        const float3x3 inMat = float3x3(
+            0.59719f, 0.35458f, 0.04823f,
+            0.07600f, 0.90834f, 0.01566f,
+            0.02840f, 0.13383f, 0.83777f
+        );
+
+        const float3x3 outMat = float3x3(
+            1.60475f, -0.53108f, -0.07367f,
+            -0.10208f,  1.10813f, -0.00605f,
+            -0.00327f, -0.07276f,  1.07602f
+        );
+
+        x = mul(inMat, x);
+        float3 a = x * (x + 0.0245786f) - 0.000090537f;
+        float3 b = x * (0.983729f * x + 0.4329510f) + 0.238081f;
+        x = a / b;
+
+        return mul(outMat, x);
+    }
+
+    float3 NarkowiczAces(float3 x) 
     {
         const float A = 2.51f;
         const float B = 0.03f;
@@ -201,7 +224,10 @@ namespace BirdsHDRNamespace {
                 return pow(ReinhardTonemap(col * exposure * pow(2, 2.27f)), 2.2f);//+2.27 exposure bias
             case 3:
                 //ACES works on linear space colors
-                return pow(ACESTonemap(col * exposure * pow(2, 0.7f)), 2.2f);//+0.7 exposure bias
+                return pow(NarkowiczAces(col * exposure * pow(2, 0.7f)), 2.2f);//+0.7 exposure bias
+            case 4:
+                //Hill ACES
+                return pow(HillAces(col * exposure * pow(2, 0.7f) / 0.6f), 2.2f);//+0.7 exposure bias
             default:
                 return 0f;
         }
@@ -240,7 +266,7 @@ namespace BirdsHDRNamespace {
         ) * gVal;
 
         float3x2 offsets = float3x2(0, 0, 0, 0, 0, 0);
-        for (float i = 1; i <= BIRDHDR_BLOOM_SIZE; i++) {
+        for (float i = 1; i <= BIRDHDR_BLOOM_SAMPLES; i++) {
             gVal = NormalDist(i, sigma);
             offsets += pSizes;
             
@@ -285,7 +311,7 @@ namespace BirdsHDRNamespace {
         ) * gVal;
 
         float3x2 offsets = float3x2(0, 0, 0, 0, 0, 0);
-        for (float i = 1; i <= BIRDHDR_BLOOM_SIZE; i++) {
+        for (float i = 1; i <= BIRDHDR_BLOOM_SAMPLES; i++) {
             gVal = NormalDist(i, sigma);
             offsets += pSizes;
 
@@ -333,7 +359,7 @@ namespace BirdsHDRNamespace {
     float4 PS_Copy(float4 p : SV_POSITION, float2 uv : TEXCOORD) : SV_TARGET  { return tex2D(bhdr_Exposure, uv); }
 #endif
 
-    technique BirdsHDR <ui_tooltip = "Features independent bloom and tonemapping components.\n\n---Preprocessor definitions---\n\nBIRDHDR_BLOOM_ENABLED - (default: 1) Enables/Disables the bloom component.\n\tBIRDHDR_BLOOM_SIZE - (default: 3) Determines how far bloom spreads. Direct effect on performance and the size increase is non-linear.\n\tBIRDHDR_BLOOM_SHOW_TEX - (default: 0) View the bloom texture on its own.\n\nBIRDHDR_MANUAL_EXPOSURE - (default: 0) Enables/Disables automatic brightness adaptation.\nBIRDHDR_SMART_ADAPTATION - (default: 1) Smart adaptation adapts to the same overall brightness as before bloom.";> 
+    technique BirdsHDR <ui_tooltip = "Features independent bloom and tonemapping components.\n\n---Preprocessor definitions---\n\nBIRDHDR_BLOOM_ENABLED - (default: 1) Enables/Disables the bloom component.\n\tBIRDHDR_BLOOM_SAMPLES - (default: 2) Determines how stable the bloom is in motion. Has a direct effect on performance.\n\tBIRDHDR_BLOOM_SHOW_TEX - (default: 0) View the bloom texture on its own.\n\nBIRDHDR_MANUAL_EXPOSURE - (default: 0) Enables/Disables automatic brightness adaptation.\nBIRDHDR_SMART_ADAPTATION - (default: 1) Smart adaptation adapts to the same overall brightness as before bloom.";> 
     {
     #if BIRDHDR_BLOOM_ENABLED
         pass gather {
